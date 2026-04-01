@@ -129,6 +129,7 @@ class BilingualFusionSentimentModel(nn.Module):
         textcnn_num_filters: int = 256,
         fusion_hidden_dim: int = 768,
         dropout: float = 0.3,
+        cache_dir: str = None,
     ):
         super().__init__()
 
@@ -136,9 +137,17 @@ class BilingualFusionSentimentModel(nn.Module):
         from .textcnn import TextCNN
 
         logger.info("Creating Chinese BERT encoder...")
-        self.zh_bert = BERTEncoder(model_name=zh_bert_name, hidden_size=768)
+        self.zh_bert = BERTEncoder(
+            model_name=zh_bert_name, 
+            hidden_size=768,
+            cache_dir=cache_dir
+        )
         logger.info("Creating English BERT encoder...")
-        self.en_bert = BERTEncoder(model_name=en_bert_name, hidden_size=768)
+        self.en_bert = BERTEncoder(
+            model_name=en_bert_name, 
+            hidden_size=768,
+            cache_dir=cache_dir
+        )
         logger.info("Creating TextCNN modules...")
 
         self.zh_textcnn = TextCNN(
@@ -185,14 +194,36 @@ class BilingualFusionSentimentModel(nn.Module):
         language: str = "zh",
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if language == "en":
-            bert_output = self.en_bert(input_ids, attention_mask, token_type_ids)
-            textcnn_output = self.en_textcnn(input_ids)
-            fused_output = self.en_fusion(bert_output, textcnn_output)
+            # 获取完整的 BERT 输出
+            outputs = self.en_bert.bert(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                token_type_ids=token_type_ids,
+            )
+            # 使用整个序列的 hidden states 给 TextCNN
+            bert_sequence = outputs.last_hidden_state  # (batch, seq_len, hidden)
+            # 使用 CLS token 用于融合
+            bert_cls = outputs.last_hidden_state[:, 0, :]  # (batch, hidden)
+            # TextCNN 处理整个序列
+            textcnn_output = self.en_textcnn(bert_embeddings=bert_sequence)
+            # 融合
+            fused_output = self.en_fusion(bert_cls, textcnn_output)
         else:
-            bert_output = self.zh_bert(input_ids, attention_mask, token_type_ids)
-            textcnn_output = self.zh_textcnn(input_ids)
-            fused_output = self.zh_fusion(bert_output, textcnn_output)
+            # 获取完整的 BERT 输出
+            outputs = self.zh_bert.bert(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                token_type_ids=token_type_ids,
+            )
+            # 使用整个序列的 hidden states 给 TextCNN
+            bert_sequence = outputs.last_hidden_state  # (batch, seq_len, hidden)
+            # 使用 CLS token 用于融合
+            bert_cls = outputs.last_hidden_state[:, 0, :]  # (batch, hidden)
+            # TextCNN 处理整个序列
+            textcnn_output = self.zh_textcnn(bert_embeddings=bert_sequence)
+            # 融合
+            fused_output = self.zh_fusion(bert_cls, textcnn_output)
 
         logits = self.classifier(fused_output)
 
-        return logits, bert_output, textcnn_output
+        return logits, bert_cls, textcnn_output

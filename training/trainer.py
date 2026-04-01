@@ -153,10 +153,12 @@ class Trainer:
         self,
         num_epochs: int,
         save_best: bool = True,
+        start_epoch: int = 1,
+        save_every_n_epochs: int = None,
     ) -> dict:
         history = {"train": [], "val": []}
 
-        for epoch in range(1, num_epochs + 1):
+        for epoch in range(start_epoch, num_epochs + 1):
             logger.info(f"\n{'=' * 50}")
             logger.info(f"Epoch {epoch}/{num_epochs}")
             logger.info(f"{'=' * 50}")
@@ -184,10 +186,17 @@ class Trainer:
             if save_best and val_metrics["f1_macro"] > self.best_val_f1:
                 self.best_val_f1 = val_metrics["f1_macro"]
                 self.patience_counter = 0
-                self.save_checkpoint(f"best_model.pt")
+                # 保存最佳模型时包含当前 epoch 信息
+                self.save_checkpoint(f"best_model.pt", epoch=epoch)
                 logger.info(f"Saved best model with F1: {self.best_val_f1:.4f}")
             else:
                 self.patience_counter += 1
+            
+            # 定期保存 checkpoint
+            if save_every_n_epochs is not None and epoch % save_every_n_epochs == 0:
+                checkpoint_filename = f"checkpoint_epoch_{epoch}.pt"
+                self.save_checkpoint(checkpoint_filename, epoch=epoch)
+                logger.info(f"Saved periodic checkpoint: {checkpoint_filename}")
 
             if self.patience_counter >= self.early_stopping_patience:
                 logger.info(f"Early stopping triggered after {epoch} epochs")
@@ -195,22 +204,65 @@ class Trainer:
 
         return history
 
-    def save_checkpoint(self, filename: str):
+    def save_checkpoint(self, filename: str, epoch: int = None):
+        """保存检查点
+        
+        Args:
+            filename: 文件名
+            epoch: 当前 epoch（可选）
+        """
         filepath = os.path.join(self.checkpoint_dir, filename)
 
         checkpoint = {
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
             "best_val_f1": self.best_val_f1,
+            "epoch": epoch if epoch is not None else 0,
         }
+        
+        # 保存 scheduler 状态（如果存在）
+        if hasattr(self, 'scheduler') and self.scheduler is not None:
+            checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
+        
+        # 保存随机种子状态
+        checkpoint["rng_state"] = torch.get_rng_state()
+        if torch.cuda.is_available():
+            checkpoint["cuda_rng_state"] = torch.cuda.get_rng_state()
 
         torch.save(checkpoint, filepath)
+        logger.info(f"Saved checkpoint to {filepath}")
 
-    def load_checkpoint(self, filepath: str):
+    def load_checkpoint(self, filepath: str) -> dict:
+        """加载检查点并返回额外信息
+        
+        Returns:
+            包含额外信息的字典（如 epoch）
+        """
         checkpoint = torch.load(filepath, map_location=self.device)
 
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.best_val_f1 = checkpoint.get("best_val_f1", 0.0)
+        
+        extra_info = {}
+        
+        # 加载 epoch
+        if "epoch" in checkpoint:
+            extra_info["epoch"] = checkpoint["epoch"]
+            logger.info(f"Checkpoint from epoch {checkpoint['epoch']}")
+        
+        # 加载 scheduler 状态
+        if hasattr(self, 'scheduler') and self.scheduler is not None:
+            if "scheduler_state_dict" in checkpoint:
+                self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+                logger.info("Loaded scheduler state")
+        
+        # 加载随机种子状态
+        if "rng_state" in checkpoint:
+            torch.set_rng_state(checkpoint["rng_state"])
+            if "cuda_rng_state" in checkpoint and torch.cuda.is_available():
+                torch.cuda.set_rng_state(checkpoint["cuda_rng_state"])
+            logger.info("Loaded RNG state")
 
         logger.info(f"Loaded checkpoint from {filepath}")
+        return extra_info

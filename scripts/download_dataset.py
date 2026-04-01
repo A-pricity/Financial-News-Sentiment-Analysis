@@ -20,6 +20,17 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "data/processed")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# 配置持久化模型缓存目录
+MODEL_CACHE_DIR = os.path.join(PROJECT_ROOT, "models/pretrained")
+os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
+
+
+def set_hf_mirror():
+    """设置 Hugging Face 镜像以加速下载"""
+    if os.getenv("HF_ENDPOINT") is None:
+        os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+        logger.info("使用 Hugging Face 镜像：https://hf-mirror.com")
+
 
 def load_lwrf42_dataset():
     """Load lwrf42/financial-sentiment-dataset (95.2k rows)"""
@@ -139,8 +150,28 @@ def split_and_save(df, output_dir):
     return train_df, val_df, test_df
 
 
+def dataset_exists() -> bool:
+    """检查数据集是否已存在"""
+    required_files = ["train.csv", "val.csv", "test.csv"]
+    
+    for file_name in required_files:
+        file_path = os.path.join(OUTPUT_DIR, file_name)
+        if not os.path.exists(file_path):
+            return False
+    
+    return True
+
+
 def download_and_process():
     """Main function to download and process datasets"""
+    
+    # 检查数据集是否已存在
+    if dataset_exists():
+        logger.info("数据集已存在，跳过下载")
+        logger.info(f"数据目录：{OUTPUT_DIR}")
+        return
+    
+    logger.info("开始下载数据集...")
 
     # Try to load the larger dataset first
     try:

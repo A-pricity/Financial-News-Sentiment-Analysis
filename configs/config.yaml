@@ -21,6 +21,8 @@ crawler:
   proxy_https: ""
 
 model:
+  # 使用本地模型路径（将模型压缩包解压到此目录）
+  local_model_dir: "./local_models"
   chinese:
     bert_name: "bert-base-chinese"
     textcnn_filter_sizes: [2, 3, 4]
@@ -34,7 +36,7 @@ model:
     dropout: 0.3
 
 training:
-  epochs: 1
+  epochs: 10
   batch_size: 16
   gradient_accumulation_steps: 1
   learning_rate_bert: 0.00002
@@ -43,7 +45,7 @@ training:
   warmup_steps: 500
   early_stopping_patience: 3
   mixed_precision: false
-  max_samples: 20  # 小样本测试，注释掉则使用全量数据
+  # max_samples: 20  # 小样本测试，注释掉则使用全量数据
 
 sentiment:
   chinese_threshold: 0.01
