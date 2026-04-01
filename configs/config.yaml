@@ -1,0 +1,51 @@
+data:
+  max_length: 512
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  random_seed: 42
+
+crawler:
+  batch_size: 20
+  min_interval: 1
+  max_interval: 2
+  max_retries: 3
+  timeout: 30
+  target_total: 100000
+  checkpoint_interval: 50
+  checkpoint_dir: "checkpoints"
+  max_workers: 4
+  log_dir: "logs"
+  log_level: "INFO"
+  proxy_http: ""
+  proxy_https: ""
+
+model:
+  chinese:
+    bert_name: "bert-base-chinese"
+    textcnn_filter_sizes: [2, 3, 4]
+    textcnn_num_filters: 256
+  english:
+    bert_name: "bert-base-uncased"
+    textcnn_filter_sizes: [2, 3, 4, 5]
+    textcnn_num_filters: 256
+  fusion:
+    hidden_dim: 768
+    dropout: 0.3
+
+training:
+  epochs: 1
+  batch_size: 16
+  gradient_accumulation_steps: 1
+  learning_rate_bert: 0.00002
+  learning_rate_other: 0.001
+  weight_decay: 0.01
+  warmup_steps: 500
+  early_stopping_patience: 3
+  mixed_precision: false
+  max_samples: 20  # 小样本测试，注释掉则使用全量数据
+
+sentiment:
+  chinese_threshold: 0.01
+  english_threshold: 0.01
+  high_confidence_threshold: 0.01
