@@ -138,15 +138,11 @@ class BilingualFusionSentimentModel(nn.Module):
 
         logger.info("Creating Chinese BERT encoder...")
         self.zh_bert = BERTEncoder(
-            model_name=zh_bert_name, 
-            hidden_size=768,
-            cache_dir=cache_dir
+            model_name=zh_bert_name, hidden_size=768, cache_dir=cache_dir
         )
         logger.info("Creating English BERT encoder...")
         self.en_bert = BERTEncoder(
-            model_name=en_bert_name, 
-            hidden_size=768,
-            cache_dir=cache_dir
+            model_name=en_bert_name, hidden_size=768, cache_dir=cache_dir
         )
         logger.info("Creating TextCNN modules...")
 
@@ -193,6 +189,9 @@ class BilingualFusionSentimentModel(nn.Module):
         token_type_ids: Optional[torch.Tensor] = None,
         language: str = "zh",
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        expected_vocab = 30522 if language == "en" else 21128
+        input_ids = input_ids.clamp(0, expected_vocab - 1)
+
         if language == "en":
             # 获取完整的 BERT 输出
             outputs = self.en_bert.bert(
