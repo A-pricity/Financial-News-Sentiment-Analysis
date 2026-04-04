@@ -12,3 +12,5 @@ vaderSentiment>=3.3.2
 snownlp>=0.12.3
 pandas>=2.0.0
 numpy>=1.24.0
+protobuf>=3.20.0
+sentencepiece>=0.1.99

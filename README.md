@@ -137,6 +137,45 @@ uv run python scripts/train.py --resume checkpoints/checkpoint_epoch_3.pt
 uv run python scripts/train.py --save-every 2
 ```
 
+### 训练后自动评估
+
+训练完成后自动在测试集上评估模型性能：
+
+```bash
+# 默认开启自动评估
+uv run python scripts/train.py --epochs 10
+
+# 禁用自动评估
+uv run python scripts/train.py --epochs 10 --no-eval
+```
+
+### 后台运行
+
+```bash
+# 后台训练（关闭终端后仍继续运行）
+uv run python scripts/run_background.py --mode train --epochs 10
+
+# 后台评估
+uv run python scripts/run_background.py --mode eval
+
+# 查看运行状态
+uv run python scripts/run_background.py --status
+
+# 停止后台任务
+uv run python scripts/run_background.py --stop
+```
+
+### 日志说明
+
+训练过程产生双层日志输出：
+
+| 日志类型 | 位置 | 说明 |
+|---------|------|------|
+| 详细日志 | `logs/train_YYYYMMDD_HHMMSS.log` | 包含完整训练过程 |
+| 终端输出 | stdout | 仅显示关键指标（loss、accuracy、F1） |
+
+日志文件自动保留最近5个，超出自动清理。
+
 ### 单独下载资源
 
 ```bash

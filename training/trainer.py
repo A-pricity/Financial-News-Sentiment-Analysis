@@ -23,6 +23,7 @@ class Trainer:
         mixed_precision: bool = True,
         early_stopping_patience: int = 3,
         checkpoint_dir: str = "checkpoints",
+        verbose: bool = True,
     ):
         self.model = model
         self.train_loader = train_loader
@@ -46,6 +47,78 @@ class Trainer:
 
         self.best_val_f1 = 0.0
         self.patience_counter = 0
+        self.verbose = verbose
+        self.results_dir = None
+
+    def _init_results_dir(self):
+        """初始化 results 目录"""
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        results_dir = os.path.join("results", "training", timestamp)
+        os.makedirs(results_dir, exist_ok=True)
+        self.results_dir = results_dir
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"Initialized results directory: {results_dir}")
+
+    def save_history(self, history: dict, filename: str = "training_history.csv"):
+        """Save training history to CSV in results folder"""
+        import csv
+        from datetime import datetime
+
+        # 如果 results_dir 已存在，使用现有的；否则创建新的
+        if self.results_dir is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            results_dir = os.path.join("results", "training", timestamp)
+            os.makedirs(results_dir, exist_ok=True)
+            self.results_dir = results_dir
+        else:
+            results_dir = self.results_dir
+
+        filepath = os.path.join(results_dir, filename)
+
+        rows = []
+        for i, (train_metric, val_metric) in enumerate(
+            zip(history["train"], history["val"])
+        ):
+            rows.append(
+                {
+                    "epoch": i + 1,
+                    "train_loss": train_metric["loss"],
+                    "train_accuracy": train_metric["accuracy"],
+                    "val_loss": val_metric["loss"],
+                    "val_accuracy": val_metric["accuracy"],
+                    "val_f1_macro": val_metric.get("f1_macro", 0),
+                }
+            )
+
+        if not rows:
+            return
+
+        fieldnames = [
+            "epoch",
+            "train_loss",
+            "train_accuracy",
+            "val_loss",
+            "val_accuracy",
+            "val_f1_macro",
+        ]
+
+        with open(filepath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        logger.info(f"Saved training history to {filepath}")
+
+        self.results_dir = results_dir
+        return results_dir
+
+    def get_results_dir(self) -> str:
+        """Get the results directory path"""
+        return self.results_dir
 
     def train_epoch(self, epoch: int) -> dict:
         self.model.train()
@@ -140,6 +213,7 @@ class Trainer:
             all_preds,
             target_names=["negative", "neutral", "positive"],
             output_dict=True,
+            zero_division=0,
         )
 
         return {
@@ -157,6 +231,9 @@ class Trainer:
         save_every_n_epochs: int = None,
     ) -> dict:
         history = {"train": [], "val": []}
+
+        # 初始化 results 目录
+        self._init_results_dir()
 
         for epoch in range(start_epoch, num_epochs + 1):
             logger.info(f"\n{'=' * 50}")
@@ -191,7 +268,7 @@ class Trainer:
                 logger.info(f"Saved best model with F1: {self.best_val_f1:.4f}")
             else:
                 self.patience_counter += 1
-            
+
             # 定期保存 checkpoint
             if save_every_n_epochs is not None and epoch % save_every_n_epochs == 0:
                 checkpoint_filename = f"checkpoint_epoch_{epoch}.pt"
@@ -202,11 +279,13 @@ class Trainer:
                 logger.info(f"Early stopping triggered after {epoch} epochs")
                 break
 
+        # 训练完成后保存历史记录
+        self.save_history(history)
         return history
 
     def save_checkpoint(self, filename: str, epoch: int = None):
         """保存检查点
-        
+
         Args:
             filename: 文件名
             epoch: 当前 epoch（可选）
@@ -219,11 +298,11 @@ class Trainer:
             "best_val_f1": self.best_val_f1,
             "epoch": epoch if epoch is not None else 0,
         }
-        
+
         # 保存 scheduler 状态（如果存在）
-        if hasattr(self, 'scheduler') and self.scheduler is not None:
+        if hasattr(self, "scheduler") and self.scheduler is not None:
             checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
-        
+
         # 保存随机种子状态
         checkpoint["rng_state"] = torch.get_rng_state()
         if torch.cuda.is_available():
@@ -234,7 +313,7 @@ class Trainer:
 
     def load_checkpoint(self, filepath: str) -> dict:
         """加载检查点并返回额外信息
-        
+
         Returns:
             包含额外信息的字典（如 epoch）
         """
@@ -243,26 +322,37 @@ class Trainer:
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.best_val_f1 = checkpoint.get("best_val_f1", 0.0)
-        
+
         extra_info = {}
-        
+
         # 加载 epoch
         if "epoch" in checkpoint:
             extra_info["epoch"] = checkpoint["epoch"]
             logger.info(f"Checkpoint from epoch {checkpoint['epoch']}")
-        
+
         # 加载 scheduler 状态
-        if hasattr(self, 'scheduler') and self.scheduler is not None:
+        if hasattr(self, "scheduler") and self.scheduler is not None:
             if "scheduler_state_dict" in checkpoint:
                 self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
                 logger.info("Loaded scheduler state")
-        
-        # 加载随机种子状态
+
+        # 加载随机种子状态 (跳过，可能导致版本不兼容错误)
         if "rng_state" in checkpoint:
-            torch.set_rng_state(checkpoint["rng_state"])
-            if "cuda_rng_state" in checkpoint and torch.cuda.is_available():
-                torch.cuda.set_rng_state(checkpoint["cuda_rng_state"])
-            logger.info("Loaded RNG state")
+            try:
+                rng_state = checkpoint["rng_state"]
+                if hasattr(rng_state, "cpu"):
+                    rng_state = rng_state.cpu()
+                torch.set_rng_state(rng_state)
+            except Exception as e:
+                logger.warning(f"Skipped RNG state restoration: {e}")
+        if "cuda_rng_state" in checkpoint and torch.cuda.is_available():
+            try:
+                cuda_state = checkpoint["cuda_rng_state"]
+                if hasattr(cuda_state, "cpu"):
+                    cuda_state = cuda_state.cuda()
+                torch.cuda.set_rng_state(cuda_state)
+            except Exception as e:
+                logger.warning(f"Skipped CUDA RNG state restoration: {e}")
 
         logger.info(f"Loaded checkpoint from {filepath}")
         return extra_info

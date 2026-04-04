@@ -18,3 +18,8 @@ data/processed/*.json
 
 # 预训练模型缓存（体积大，不提交到 Git）
 models/pretrained/
+results/
+logs/
+checkpoints/
+docs/
+.running.pid
