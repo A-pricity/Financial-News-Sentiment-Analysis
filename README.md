@@ -20,7 +20,7 @@
 
 **Financial News Sentiment Analysis** 是一个基于深度学习的金融新闻情感分析系统，支持**中文**和**英文**自动识别，能够准确判断新闻的情感倾向（**负面/中性/正面**）。
 
-本项目采用 **BERT + TextCNN** 融合架构，结合了预训练语言模型的语义理解能力和卷积神经网络的局部特征提取能力，在金融情感分类任务上达到了 **82%+ F1 分数**。
+本项目采用 **BERT + TextCNN** 融合架构，结合了预训练语言模型的语义理解能力和卷积神经网络的局部特征提取能力，在金融情感分类任务上达到了 **94%+ F1 分数**。
 
 ### 核心优势
 
@@ -149,11 +149,34 @@ uv run python scripts/train.py --epochs 10
 uv run python scripts/train.py --epochs 10 --no-eval
 ```
 
+### 交叉验证
+
+使用K折交叉验证评估模型稳定性：
+
+```bash
+# 10折交叉验证（使用预分好的kfold数据集）
+uv run python scripts/train.py --cv 10
+
+# 5折交叉验证（自动划分数据）
+uv run python scripts/train.py --cv 5
+
+# 10折交叉验证 + 完整数据集
+uv run python scripts/train.py --cv 10 --epochs 10
+```
+
+交叉验证会自动遍历每个fold训练模型，最终输出：
+- 每个fold的F1分数
+- **平均F1**（取各fold均值）
+- 平均准确率
+
 ### 后台运行
 
 ```bash
 # 后台训练（关闭终端后仍继续运行）
 uv run python scripts/run_background.py --mode train --epochs 10
+
+# 后台10折交叉验证
+uv run python scripts/run_background.py --mode train --cv 10
 
 # 后台评估
 uv run python scripts/run_background.py --mode eval

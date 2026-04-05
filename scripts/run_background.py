@@ -135,6 +135,7 @@ def main():
     parser.add_argument("--status", action="store_true", help="查看运行状态")
     parser.add_argument("--epochs", type=int, help="训练轮数")
     parser.add_argument("--resume", type=str, help="从检查点恢复")
+    parser.add_argument("--cv", type=int, default=0, help="K折交叉验证")
     args = parser.parse_args()
 
     if args.status:
@@ -147,6 +148,8 @@ def main():
             extra_args.extend(["--epochs", str(args.epochs)])
         if args.resume:
             extra_args.extend(["--resume", args.resume])
+        if args.cv > 0:
+            extra_args.extend(["--cv", str(args.cv)])
         start_task(args.mode, extra_args)
     else:
         parser.print_help()

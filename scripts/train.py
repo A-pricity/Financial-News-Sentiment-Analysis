@@ -613,13 +613,15 @@ def main():
                 model.to(device)
 
                 optimizer = AdamW(
-                    model.parameters(), lr=config["training"]["learning_rate"]
+                    model.parameters(), lr=config["training"]["learning_rate_bert"]
                 )
+                scheduler = None
                 trainer_fold = Trainer(
                     model=model,
                     train_loader=train_loader,
                     val_loader=val_loader,
                     optimizer=optimizer,
+                    scheduler=scheduler,
                     device=device,
                     gradient_accumulation_steps=config["training"][
                         "gradient_accumulation_steps"
@@ -694,13 +696,15 @@ def main():
                 model.to(device)
 
                 optimizer = AdamW(
-                    model.parameters(), lr=config["training"]["learning_rate"]
+                    model.parameters(), lr=config["training"]["learning_rate_bert"]
                 )
+                scheduler = None
                 trainer_fold = Trainer(
                     model=model,
                     train_loader=train_loader,
                     val_loader=val_loader,
                     optimizer=optimizer,
+                    scheduler=scheduler,
                     device=device,
                     gradient_accumulation_steps=config["training"][
                         "gradient_accumulation_steps"
